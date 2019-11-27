@@ -1,0 +1,127 @@
+-*- python -*-
+# Mike Kapelinski
+# Predict 420_55
+# GrEx3
+
+import os
+import json 
+import pandas as pd
+from collections import OrderedDict
+from pandas.io.json import json_normalize
+from pandas import DataFrame as df
+import pickle
+from bs4 import BeautifulSoup
+import nltk
+from nltk.corpus import stopwords
+from collections import Counter
+import re
+
+# 1(a) open path to json files stored in folder on desktop
+path = ('C:\\Users\\mike\\Desktop\\hotelCustsSu2017\\')
+
+# search for all files that end with .json
+file =[pos_json for pos_json in os.listdir(path) if pos_json.endswith('.json')]
+
+# create an empty list to write loop output to 
+all_data = list()
+
+# for loop to open all json files
+for index, js in enumerate(file):
+    with open(os.path.join(path, js)) as file:
+        # deserialize json file to python object
+         json_text = json.load(file, object_pairs_hook=OrderedDict)
+         # for loop to runn through each json file review 
+         for review in json_text['Reviews']:
+             # create empty dict to write review data to 
+             my_dict={}
+             # extract relevant review data to empty dict
+             my_dict['Author'] = review['Author']
+             my_dict['Date'] = review['Date'] 
+             my_dict['ReviewID'] = review['ReviewID']
+             my_dict['HotelID'] = json_text['HotelInfo']['HotelID']
+             my_dict['Ratings'] = review['Ratings']
+             # loop key error exception for Hotel Name 
+             try:
+                 my_dict['Name'] = json_text['HotelInfo']['Name']
+             except KeyError:
+                 pass
+             # store dict data into list all_data
+             all_data.append(my_dict)
+             print(my_dict)
+           
+# normalize json data into flat table 
+result = json_normalize(all_data)
+
+# fill Na entries with blank string 
+result = result.fillna('')
+result.head(1)
+
+# 1(b) report number of reviews by hotelID
+counts = result['HotelID'].value_counts()
+counts
+
+# 1(b) convert overall.ratings to float 
+int_con = result['Ratings.Overall']
+int_con2 = int_con.astype(float)
+
+# calculate descriptive stats on overall rating data
+stat = int_con2.value_counts()
+stat
+
+stat1 = stat.describe()
+# round stat data to 2 places
+stat1 = print(round(stat1, 2))
+
+# 1 (c)
+# serialize dataset
+f = open('C:\\Users\\mike\\Desktop\\Predict 420\\GrEx3.pkl', 'wb', -1)
+pickle.dump(result, f)
+f.close()    
+
+# deserialize dataset
+f = open('C:\\Users\\mike\\Desktop\\Predict 420\\GrEx3.pkl', 'rb')
+Final1_pickle = pickle.load(f)
+f.close()
+
+# define input and result path for JSON files 
+ipath = ('C:\\Users\\mike\\Desktop\\hotelCustsSu2017\\')
+resultpath = ('C:\\Users\\mike\\Desktop\\hotelCustsSu2017\\')
+
+print('start')
+# create final dictionary hotwords 
+hotwords = {}
+
+# 2(1-2) loop through each JSON file collect HotelID and review content 
+# use BeautifulSoup, nltk, re, and collections for text processing 
+file=[pos_json for pos_json in os.listdir(ipath) if pos_json.endswith('.json')]
+for index, js in enumerate(file):
+    with open(os.path.join(ipath, js)) as file:
+        json_text1 = json.load(file)
+        hotelID = json_text1['HotelInfo']['HotelID']
+        contents = ''
+        for content in json_text1['Reviews']:
+            contents = contents + content['Content']    
+        # remove html, numeric, and special characters
+        Contenta = BeautifulSoup(contents, "lxml")
+        reviewText = re.sub("[^a-zA-Z]", " ", Contenta.get_text())
+        removeChars = reviewText.replace("!@#$%^&*()[]{};:,./<>?\|`~-=_+", " ")
+        # convert to lowercase and split string to list
+        low = removeChars.lower()
+        words = low.split()
+        # remove stop words 
+        f_words = [w for w in words if not w in stopwords.words("english")]
+        # count each occurence of each content word in f_words
+        final_count = dict(Counter(f_words))
+        hotwords[hotelID] = final_count
+        # 2(3) write hotwords dict to json file to reultpath 
+        with open(resultpath + 'final_count.json', 'w') as outfile:
+            json.dump(hotwords, outfile)                
+print('end')    
+
+# 2(3) verify final_count was written correctly 
+with open(resultpath + 'final_count.json', 'r') as fp:
+                final_count = json.load(fp)
+# 2(4) for loop to count unique values by total value count   
+for key, value in final_count.items():
+    print(key, len([item for item in value if item]))
+    
