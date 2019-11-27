@@ -1,0 +1,203 @@
+-*- python -*-
+# Mike Kapelinski
+# Predict 420_55
+# GrEx2
+
+import pandas as pd
+from pandas import DataFrame as df
+import numpy as np
+import sqlite3 
+import shelve
+
+#1(a) read data files
+customer = pd.read_csv('C:\\project_2\\Customer.csv', sep=',')
+mail = pd.read_csv('C:\\project_2\\Mail.csv', sep=',' )
+item = pd.read_csv('C:\\project_2\\Item.csv', sep=',' )
+
+#1(b & c) print column names item DataFrame and first (4) records
+print (item.dtypes)
+item[:4:1]
+
+#2 create data frame consisting of only active buyers acctno
+active_cust = customer[customer['buyer_status'] == 'ACTIVE']
+acct_no = active_cust['acctno']
+# create data frame consisting of only active buyers acctno
+active_mail = mail[mail['acctno'].isin(acct_no)]
+# create data frame consisting of only active buyers acctno
+active_item = item[item['acctno'].isin(acct_no)]
+
+# create a database connection
+conn = sqlite3.connect('C:\\project_2\\xyz.db')
+
+# establish the cursor
+curs = conn.cursor()
+# write df active customer to a table in SQL database 
+active_cust.to_sql('customer', conn, if_exists='replace')
+# write df active mail to a table in SQL database 
+active_mail.to_sql('mail', conn, if_exists='replace')
+# write df active item to a table in SQL database 
+active_item.to_sql('item', conn, if_exists='replace')
+
+# read customer results of sql query into a pandas dataframe 
+df1 = pd.read_sql_query('SELECT * FROM customer', conn)
+# print the first row of acive_cust from table
+print(df1.head(1))
+# print the last row of acive_cust from table
+print(df1.tail(1))
+# read mail results of sql query into a pandas dataframe 
+df2 = pd.read_sql_query('SELECT * FROM mail', conn)
+# print the first row of acive_mail from table
+print(df2.head(1))
+# read item results of sql query into a pandas dataframe 
+df3 = pd.read_sql_query('SELECT * FROM item', conn)
+# print the first row of acive_item from table
+print(df3.head(1))
+
+#3(e) create data frame custSum
+custSum = active_cust[['acctno']]
+#3(a) calculate 90th percentile of active buyers sales
+p = active_cust['ytd_sales_2009']
+np.percentile(p, 90)
+
+pd.options.mode.chained_assignment = None
+# populate heavy_buy with y or n if greater than 90th percentile
+custSum['heavy_buy'] = np.where(active_cust['ytd_sales_2009'] > 1083,'Y','N')
+# change any na or 0 values to U
+active_cust = active_cust.fillna('U')
+active_cust = active_cust.replace(['0'],['U'])
+#3(b) search active_cust for credit card and populate custSum cc col y or n
+match_am = active_cust['amex_prem'].str.contains('U') & \
+active_cust['amex_reg'].str.contains('U')
+custSum['amex'] = np.where(match_am, 'N', 'Y')
+# search active_cust for credit card and populate custSum cc col y or n
+match_di = active_cust['disc_prem'].str.contains('U') & \
+active_cust['disc_reg'].str.contains('U') 
+custSum['disc'] = np.where(match_di, 'N', 'Y')
+# search active_cust for credit card and populate custSum cc col y or n
+match_vi = active_cust['visa_prem'].str.contains('U') & \
+active_cust['visa_reg'].str.contains('U')
+custSum['visa'] = np.where(match_vi, 'N', 'Y')
+# search active_cust for credit card and populate custSum cc col y or n
+match_mc = active_cust['mc_prem'].str.contains('U') & \
+active_cust['mc_reg'].str.contains('U')
+custSum['mc'] = np.where(match_mc, 'N', 'Y')
+# change any na values to 0 or U 
+adult2 = active_cust['adult2_g'].fillna('U')
+
+#3(c & d) add columns to custSum data frame
+custSum['HH_income'] = active_cust['inc_scs_amt_v4']
+custSum['adult1_g'] = active_cust['adult1_g']
+custSum['adult2_g'] = adult2
+custSum['zip'] = active_cust['zip'].astype(int)
+custSum['zip4'] = active_cust['zip4'].astype(int)
+zip_4 = active_cust['zip4'].fillna('0')
+# write df custSum to a table in SQL database 
+custSum.to_sql('custSum', conn, if_exists='replace')
+# read item results of sql query into a pandas dataframe 
+df5 = pd.read_sql_query('SELECT * FROM custSum', conn)
+
+# count records in custSum table
+curs.execute("select count(*) from custSum")  
+custSum_count = list(curs)
+# count records in customer table
+curs.execute("select count(*) from customer")  
+cust_count = list(curs)
+# count records in mail table
+curs.execute("select count(*) from mail")  
+mail_count = list(curs)
+# count records in item table
+curs.execute("select count(*) from item")  
+item_count = list(curs)
+#3(f) print record counts for each table
+print('Records in Table custSum =', custSum_count)
+print('Records in Table customer =', cust_count)
+print('Records in Table mail =', mail_count)
+print('Records in Table item =', item_count)
+
+# disconnect from server
+conn.close()
+
+#3(g) print the first row of CustSum from table
+df5.head(1)
+
+#4(a) create data frame consisting of active and lapsed buyers
+both_cust = customer[customer['buyer_status'] == 'ACTIVE']
+both_cust2 = customer[customer['buyer_status'] == 'LAPSED']
+# create list of two dataframes by buyer status
+both_buyer = (both_cust, both_cust2)
+# combine both data sets into a single dataframe
+buyer_final = pd.concat(both_buyer)
+buyer_final2 = buyer_final[['acctno', 'buyer_status']]
+# search data frame item for active and lapsed buyer acctno
+acct_no2 = buyer_final2['acctno']
+item_final = item[item['acctno'].isin(acct_no2)]
+# create pivot table of acctno and item decription indexed by acctno
+item_pivot = item_final.pivot_table(index='acctno', columns='deptdescr', 
+values='qty', aggfunc='count').reset_index()
+#4(c) create data frame and reset index
+target_mark = buyer_final[['acctno', 'buyer_status','ltd_sales']].reset_index()
+# merge target mark and item_pivot by acctno
+Q = pd.merge(target_mark, item_pivot, on='acctno', how='left')
+#4(b) search acctno for appliance purchase and populate y or n in column 
+Q['Appliances'] = np.where(Q['Appliances'] >= 1, 'Y','N')
+# search acctno for cam and camcord acc purchase and populate y or n in column 
+Q['Cameras & Camcorder Accessori'] = \
+np.where(Q['Cameras & Camcorder Accessori'] >= 1, 'Y','N')
+# search acctno for home audio purchase and populate y or n in column 
+Q['Home Audio'] = np.where(Q['Home Audio']>= 1, 'Y','N')
+# search acctno for mobile elec access purchase and populate y or n in column 
+Q['Mobile Electronic Accessories'] = \
+np.where(Q['Mobile Electronic Accessories']>= 1, 'Y','N')
+# search acctno for mobile elec purchase and populate y or n in column 
+Q['Mobile Electronics'] = np.where(Q['Mobile Electronics']>= 1,
+'Y','N')
+# search acctno for port elec purchase and populate y or n in column 
+Q['Portable Electronics'] = np.where(Q['Portable Electronics']>= 1, 
+'Y','N')
+# search acctno for small appliance purchase and populate y or n in column 
+Q['Small Appliances'] = np.where(Q['Small Appliances']>= 1, 'Y','N')
+
+# change any na values to 0
+final_table= Q.fillna('0')
+#4(d) write table to csv file
+final_table.to_csv('C:\\project_2\\final_table.csv',sep=',')
+#4(e) open final_table csv
+fin_tab = pd.read_csv('C:\\project_2\\final_table.csv',sep=',')
+
+#4(d) open shelf
+shelf = shelve.open('GrEx2_shelf.db', flag='c', protocol=2)
+# store final_table in shelf
+try: 
+    final_table
+# close shelf 
+finally:
+    shelf.close()
+# open shelf 
+shelf = shelve.open('GrEx2_shelf.db', flag='c', protocol=2)
+try:
+    shelf_file = final_table
+finally: 
+    shelf.close()
+# print first 3 entries of final_table from shelf    
+shelf_file.head(3)
+
+#5 group quantity and sales
+indiv_trans = item_final.loc[:,['acctno', 'deptdescr', 'qty', 'totamt']].\
+groupby(['acctno', 'deptdescr']).agg([np.sum, len]).reset_index() 
+# format table
+indiv_trans = pd.DataFrame({'acctno':indiv_trans['acctno'], \
+'deptdescr':indiv_trans['deptdescr'],'tot_products':indiv_trans['qty']['sum'],\
+'totamt':indiv_trans['totamt']['sum'],'num_adults':indiv_trans['qty']['len']}) 
+tbl_active = customer.query("buyer_status == 'ACTIVE'").\
+loc[:,['acctno', 'adult1_g']] # filter cust_tbl for ACTIVE only
+# merge indiv_trans table
+cust_tbl_trans = tbl_active.\
+merge(indiv_trans, on=['acctno'], how='left')
+cust_pivot_sum = pd.pivot_table(cust_tbl_trans, \
+    values=['tot_products', 'totamt', 'num_adults'], index='deptdescr', \
+    columns='adult1_g', aggfunc=np.sum).reset_index().fillna(0). \
+    sort_values([('num_adults', 'M')], ascending=0)# sum qty+sales+count
+# change count to int
+cust_pivot_sum['num_adults'] = cust_pivot_sum['num_adults'].astype(int)
+# print top 6 result by count
+print(cust_pivot_sum.head(6))
