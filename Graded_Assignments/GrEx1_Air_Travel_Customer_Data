@@ -1,0 +1,213 @@
+# -*- coding: utf-8 -*-
+# Mike Kapelinski
+# Predict 420_55
+# GrEx1
+
+
+import pandas as pd
+from pandas import DataFrame as df
+import pickle
+import pandas_profiling 
+
+# read data files
+df14 = pd.read_excel('C:\\Predict420-Assign1\\sfo_cust2014.xlsx',sheetname=1)
+df15 = pd.read_csv('C:\\Predict420-Assign1\\sfo_cust2015.csv', sep=',')
+df16 = pd.read_excel('C:\\Predict420-Assign1\\sfo_cust2016.xlsx')
+
+# 1(a) Variables included in Summary data set are(YEAR, RESPNUM, Q7ART, Q7FOOD,
+# Q7STORE, Q7SIGN ,Q7WALKWAYS, Q7SCREENS, Q7INFODOWN,Q7INFOUP, Q7WIFI, Q7ROADS,
+# Q7PARK, Q7AIRTRAIN, Q7LTPARKING, Q7RENTAL, Q7ALL, Q9BOARDING ,Q9AIRTRAIN,
+# Q9RENTAL, Q9FOOD, Q9RESTROOM, Q9ALL, Q10SAFE,Q12PRECHECKRATE, Q13GETRATE, 
+# Q14FIND, Q14PASSTHRU, Q16LIVE)
+
+# 1(b) Varibles that were changed were (RESPNUM* to RESPNUM in 2016) and
+# (Q12PRECHEKCRATE TO Q12PRECHECKRATE in 2015)
+
+# add a year column
+df14['YEAR'] = '2014'
+
+# search list to create dataframe of 2014 variables
+fourteen_final = df14[['YEAR','RESPNUM', 'Q7ART', 'Q7FOOD',
+'Q7STORE','Q7SIGN','Q7WALKWAYS','Q7SCREENS','Q7INFODOWN',
+'Q7INFOUP', 'Q7WIFI', 'Q7ROADS', 'Q7PARK', 'Q7AIRTRAIN', 
+'Q7LTPARKING','Q7RENTAL', 'Q7ALL','Q9BOARDING','Q9AIRTRAIN',
+'Q9RENTAL', 'Q9FOOD', 'Q9RESTROOM', 'Q9ALL','Q10SAFE', 
+'Q12PRECHECKRATE', 'Q13GETRATE', 'Q14FIND', 'Q14PASSTHRU','Q16LIVE']]
+
+# add a year column
+df15['YEAR'] = '2015'
+
+# search list to create dataframe of 2015 variables
+fifteen_final = df15[['YEAR','RESPNUM', 'Q7ART', 'Q7FOOD',
+'Q7STORE','Q7SIGN','Q7WALKWAYS','Q7SCREENS','Q7INFODOWN',
+'Q7INFOUP', 'Q7WIFI', 'Q7ROADS', 'Q7PARK', 'Q7AIRTRAIN', 
+'Q7LTPARKING','Q7RENTAL', 'Q7ALL','Q9BOARDING','Q9AIRTRAIN',
+'Q9RENTAL', 'Q9FOOD', 'Q9RESTROOM', 'Q9ALL','Q10SAFE', 
+'Q12PRECHECKRATE', 'Q13GETRATE', 'Q14FIND', 'Q14PASSTHRU','Q16LIVE']]
+
+# add a year column
+df16['YEAR'] = '2016'
+
+# search list to create dataframe of 2016 variables
+sixteen_final = df16[['YEAR','RESPNUM', 'Q7ART', 'Q7FOOD',
+'Q7STORE','Q7SIGN','Q7WALKWAYS','Q7SCREENS','Q7INFODOWN',
+'Q7INFOUP', 'Q7WIFI', 'Q7ROADS', 'Q7PARK', 'Q7AIRTRAIN', 
+'Q7LTPARKING','Q7RENTAL', 'Q7ALL','Q9BOARDING','Q9AIRTRAIN',
+'Q9RENTAL', 'Q9FOOD', 'Q9RESTROOM', 'Q9ALL','Q10SAFE', 
+'Q12PRECHECKRATE', 'Q13GETRATE', 'Q14FIND', 'Q14PASSTHRU','Q16LIVE']]
+
+# create list of three dataframes by year
+frames = [fourteen_final, fifteen_final, sixteen_final]
+
+# combine all three data sets into a single dataframe
+df1 = pd.concat(frames, join='outer')
+
+# change any blank or na values to 0
+final_data = df1.fillna('0')
+final_data1 = final_data.replace(['Blank'],[0])
+
+# 1(c) The data set consists of 8863 rows(observations) and 30 columns(variables). 
+# Has 29 numeric and 1 categorical variable(Q12PRECHECKRATE). Of the rating data 
+# there are 10,095 0s or blank values of the 239,301 total rating data points. 
+# Q7, Q9, Q10, Q12, Q13, Q14 data was ranked from 1-5 (5 being best) 
+# with 6 being Na, and 0 representing a blank. Q16 was used to evaluate proximity
+# to the airport and was answered 1-3 with 0 representing a blank. 
+
+# 1(d) Write data to csv file
+
+# write data set to csv file
+final_data1.to_csv('C:\\Predict420-Assign1\\Final_Data1.csv',sep=',')
+final_data1['Q12PRECHECKRATE'].value_counts()
+
+# calculate value counts for responses
+li = list()
+li.append(df15['Q8COM1'].value_counts())
+li.append(df15['Q8COM2'].value_counts())
+li.append(df15['Q8COM3'].value_counts())
+li.append(df16['Q8COM'].value_counts())
+li.append(df16['Q8COM2'].value_counts())
+li.append(df16['Q8COM3'].value_counts())
+li.append(df16['Q8COM4'].value_counts())
+li.append(df16['Q8COM5'].value_counts())
+
+# create empty dictionary
+d = dict()
+
+# sum up counts in dictionary with reason code as key
+for value_counts in li:
+    for index, value in enumerate(value_counts):
+        if value_counts.index[index] not in d:
+            d[value_counts.index[index]] = value
+        else:
+            d[value_counts.index[index]] = d[value_counts.index[index]] + value
+
+# create DataFrame from dictionary
+df = pd.DataFrame(list(d.items()), columns=['Question', 'Count'])
+sum(df['Count']) # equals 5476
+df["Count"] = df['Count'].apply(lambda x: x/5476)
+df = df.sort_values('Count', ascending=False)
+
+# print top 3 frequency
+Top3 = (df)[0:3:1]
+Top3
+
+# 2(a) The most frequent repsonse was 0 indicating a blank response which occurs
+# 27% of the time, the second most frequent was coode 999 in the dictionary
+# which is "Make this area more like terminal 2" occurs 7% of the time and the 
+# thrid most frequent response was 202 which is "Need more places to 
+# eat/drink/more variety in restaurants occured 6% of the time. 
+
+# 3(a) Summarize SFO airport data distribution as a whole by repondent location
+ 
+# create frequency table of Airport ratings by where they live
+z = pd.crosstab(final_data1['Q7ALL'], final_data1['Q16LIVE'], margins=True)
+z
+# read data file
+respondent = pd.read_csv('C:\\Predict420-Assign1\\select_resps.csv',sep=',')
+
+# 4(a) Create a data set of demographic and travel behaviors including
+# interivew date and time. 
+
+# create subsets of respum by year
+respnum15 = respondent[respondent.year == 2015]
+respnum16 = respondent[respondent.year == 2016]
+sort15 = respnum15['RESPNUM']
+sort16 = respnum16['RESPNUM']
+
+# search dataframe for select respnum numbers 
+resp_data15 = df15[df15['RESPNUM'].isin(sort15)]
+resp_data16 = df16[df16['RESPNUM'].isin(sort16)]
+
+# search list to create dataframe of 2015 variables
+resp15 = resp_data15[['YEAR','RESPNUM','INTDATE','DESTGEO','DESTMARK',
+'Q2PURP1','Q2PURP2','Q2PURP3', 'Q3PARK','Q4BAGS','Q7STORE','Q7FOOD',
+'Q7WIFI','Q5TIMESFLOWN','Q5FIRSTTIME','Q6LONGUSE','Q16LIVE','Q19AGE', 
+'Q20GENDER','Q21INCOME','Q22FLY','LANG','Q23SJC','Q23OAK']]
+
+# search list to create dataframe of 2016 variables
+resp16 = resp_data16[['YEAR','RESPNUM','INTDATE','DESTGEO', 'DESTMARK',
+'Q2PURP1','Q2PURP2','Q2PURP3','Q3PARK','Q4BAGS','Q7STORE','Q7FOOD',
+'Q7WIFI','Q5TIMESFLOWN','Q5FIRSTTIME','Q6LONGUSE','Q16LIVE','Q19AGE', 
+'Q20GENDER','Q21INCME','Q22FLY','LANG','Q23SJC','Q23OAK']]
+
+# convert time to useable format 
+resp15['INTDATE'] = pd.to_datetime(resp15['INTDATE']-1,
+unit='D', origin=pd.Timestamp('2015-05-01')) 
+
+# combine two data sets into a single dataframe
+final_set = pd.concat([resp15, resp16])
+# replace na with 0
+respondentfinal_data = final_set.fillna('0')
+# replace repsonses to single type across years
+respFinal = respondentfinal_data.replace(['Male', 'Female', 'Under 18',
+'Under 23','18-24','Under 29','25-34','35-44','45-54','55-64','65-Over', 
+'Don\'t Know or Refused','Blank/Multiple responses','N'], 
+[1,2,1,0,2,0,3,4,5,6,7,8,0,' '])
+
+# 4(b) This data set consists of 26 columns(variables) and 180 rows(observations)
+# of these 25 are numeric and 1 is categorical. Travel variables consisted 
+# of DESTGEO, DESTMARK, Q2PURP1-3, Q4BAGS, Q5TIMESFLOWN, Q5FIRSTIME, Q6LONFUSE,
+# Q22FLY, Q23SJC and Q23OAK. Whereas demographic variables were Q19AGE, Q20GENDER,
+# Q21INCOME, AND LANG.  
+
+# write data set to csv file
+respFinal.to_csv('C:\\Predict420-Assign1\\respFinal.csv',sep=',')
+
+# 4(c) Tabulate frequencies for parking, times flown, and how long using SFO.
+
+# create frequency table of Q3
+Park = respFinal['Q3PARK'].value_counts().reset_index().rename(columns={'index':'Comment', 0: 'count'})
+Park
+# create frequency table of Q5
+Times = respFinal['Q5TIMESFLOWN'].value_counts().reset_index().rename(columns={'index': 'Comment', 0: 'count'})
+Times
+# create frequency table of Q6
+Long = respFinal['Q6LONGUSE'].value_counts().reset_index().rename(columns={'index':'Comment', 0: 'count'})
+Long
+    
+# 5(a) Save each data set by pickling 
+
+# serialize dataset
+f = open('C:\\Predict420-Assign1\\SFO_Data_Final1.pkl', 'wb', -1)
+pickle.dump(final_data1, f)
+f.close()    
+g = open('C:\\Predict420-Assign1\\SFO_Data_Final2.pkl', 'wb', -1)
+pickle.dump(respFinal, g)
+g.close()   
+
+# deserialize dataset
+f = open('C:\\Predict420-Assign1\\SFO_Data_Final1.pkl', 'rb')
+Final1_pickle = pickle.load(f)
+f.close()
+g = open('C:\\Predict420-Assign1\\SFO_Data_Final2.pkl', 'rb')
+Final2_pickle = pickle.load(g)
+g.close()
+
+# print deserialized dataset
+print(Final1_pickle)
+print(Final2_pickle)
+
+df=pd.read_csv('C:\\Predict420-Assign1\\respFinal.csv', parse_dates=True, encoding='UTF-8')
+pandas_profiling.ProfileReport(df)
+profile = pandas_profiling.ProfileReport(df)
+profile.to_file(outputfile='C:\\Predict420-Assign1\\.html')
