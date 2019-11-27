@@ -1,4 +1,4 @@
-# MSPA-420-Database-Systems-Data-Preparation
+# MSPA-420-Database-Systems-&-Data-Preparation
 
 This course is about manipulating data accessed through databases to prepare it for analysis using Python tools. SQL and NoSQL
 technologies are the core database technologies used. ElasticSearch will be the NoSQL store that we’ll be using to provide access 
