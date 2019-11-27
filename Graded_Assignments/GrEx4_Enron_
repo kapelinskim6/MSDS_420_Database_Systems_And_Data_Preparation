@@ -1,0 +1,174 @@
+-*- python -*-
+# Mike Kapelinski
+# Predict 420_55
+# GrEx4
+
+from elasticsearch import Elasticsearch, helpers
+import pandas as pd
+import pickle
+import numpy as np
+import re
+from datetime import datetime, date
+
+# define file path
+resultpath = ('C:\\Users\\mike\\Desktop\\')
+
+# connect to the enron index in ES
+es = Elasticsearch('http://enron:spsdata@129.105.88.91:9200')
+
+# query to retrieve all messages
+query={"query" : {"match_all" : {}}}
+
+# count how many email addresses
+count_results=es.search(size=0,index='enron',doc_type='email',body=query)
+
+# print count_results
+count_results
+
+# scroll the ES for all emails
+scanResp=helpers.scan(client= es, query=query, scroll= '10m', index='',
+doc_type='email', timeout='10m')
+selectdocs = [resp['_source'] for resp in scanResp]
+
+# print length of selectdocs
+print(len(selectdocs))
+
+# serialize enron dataset
+f = open('C:\\Users\\mike\\Desktop\\enron.pkl', 'wb', -1)
+pickle.dump(selectdocs, f)
+f.close()
+
+# deserialize enron dataset
+f = open('C:\\Users\\mike\\Desktop\\enron.pkl', 'rb')
+enronPickle = pickle.load(f)
+f.close()
+
+# create empty list
+dictList=[]
+
+# for loop to read through list of dicts
+for msg in enronPickle:
+
+try:
+headers = msg['headers']
+msgBody = msg['body']
+msgID = headers['Message-ID']
+msgDate = headers['Date']
+msgFrom = headers['From']
+msgTo = headers['To']
+msgTo = msgTo.replace("\n", "")
+msgTo = msgTo.replace("\t", "")
+msgTo = msgTo.replace(" ", "")
+msgTo = msgTo.split(",")
+except:
+msgTo=''
+for mTo in msgTo:
+
+# store enron email data into list dictList
+dictList.append({'msgID':msgID,'To':mTo.strip(), 'From': \
+msgFrom.strip(), 'Date':msgDate.strip(), 'Body':msgBody.strip()})
+
+# convert list to DataFrame
+df_emails = pd.DataFrame(dictList)
+
+# create column of counts in df_emails
+df_emails['COUNTER'] = 1
+
+# create regex pattern to searh for all ken lay addresses
+pattern = re.compile("ken.lay|kenneth.lay|chairman.ken|ken.board|\
+klay@enron|e-mail<.'kenneth|e-mail<.kenneth|kennethlay|kenlay|91.kenneth|\
+lay.ken|k_lay|kenneth.l.lay|^k.lay")
+
+# 1 create data drame of all ken lay email addresses
+kenLay_allfrom = df_emails[df_emails['From'].str.contains(pattern)]
+kenLay_allto = df_emails[df_emails['To'].str.contains(pattern)]
+kenLay_all = pd.concat([kenLay_allfrom, kenLay_allto])
+print ("The total count of ken lay emails is", len(kenLay_all))
+The total count of ken lay emails is 7388
+
+# 2 create series of ken lay addresses that were recieved from
+kenLay_from = df_emails[df_emails['From'].str.contains(pattern)]\
+.groupby(['From'])['COUNTER'].sum()
+
+# 2 create series of ken lay addresses that were sent to
+kenLay_to = df_emails[df_emails['To'].str.contains(pattern)]\
+.groupby(['To'])['COUNTER'].sum()
+
+# add ken lay to addresses and from addresses
+tot_emails = kenLay_to.add(kenLay_from, fill_value=0)
+print(tot_emails)
+
+# 2 print count of all emails to or from ken lay
+print()
+print("The total count of ken lay emails is", tot_emails.sum())
+
+# 3 print all email addresses that were sent to ken lay
+print(kenLay_to)
+print()
+print("The number of unique addresses sent to is ",sum(kenLay_to.value_counts()))
+
+# emails senders of ken lay addresses
+klay_to = df_emails[df_emails['To'].str.contains(pattern)]
+print("The number of emails sent to Ken Lay is ",(len(klay_to)))
+
+# 3 print all email addresses ken lay sent to
+print()
+print(kenLay_from)
+print()
+print("The number of unique addresses sent from is ",sum(kenLay_from.value_counts()))
+
+# email recievers of ken lay addresses
+klay_from = df_emails[df_emails['From'].str.contains(pattern)]
+print("The number of emails sent by Ken Lay was ",(len(klay_from)))
+
+# create a series that consists of counts of emails from ken lay addresses
+who_to = df_emails[df_emails['From'].str.contains(pattern)]\
+.groupby(['To'])['COUNTER'].sum()
+
+# sort most sent
+who_to_sort = (who_to.sort_values(ascending = False))
+
+# 4 who ken lay sent the most emails to
+who_to_sort[:1]
+
+# create a series that consists of counts of emails to ken lay addresses
+who_from = df_emails[df_emails['To'].str.contains(pattern)]\
+.groupby(['From'])['COUNTER'].sum()
+
+# sort most recieved
+who_from_sort = (who_from.sort_values(ascending = False))
+
+# 4 who ken lay recieved the most emails from
+who_from_sort[:1]
+
+# set missing data field
+df_emails.fillna("", inplace=True)
+
+# function to create simple date object
+def convert_date_string(date_string):
+try:
+return(datetime.strptime(str(date_string)[:16].\
+lstrip().rstrip(), '%a, %d %b %Y'))
+except:
+return(None)
+
+# apply strip time function to df_emails date column
+df_emails['Date'] = df_emails['Date'].apply(lambda d: convert_date_string(d))
+
+# define bankruptcy date in proper format
+Bankruptcy = datetime.strptime(str('Sun, 2 Dec 2001'), '%a, %d %b %Y')
+
+# 5 search emails sent by ken lay before the date of bankruptcy
+before = klay_from[klay_from['Date'] < Bankruptcy]
+print("Emails before Bankruptcy =", len(before))
+
+# 5 search emails sent by ken lay after the date of bankruptcy
+after = klay_from[klay_from['Date'] > Bankruptcy]
+print("Emails after Bankruptcy =",len(after))
+Emails before Bankruptcy = 4223
+Emails after Bankruptcy = 2
+
+# 6 search for all emails that mention arthur andersen
+patt_arthur = re.compile("Andersen|Arthur Andersen")
+arthur_email = kenLay_all[kenLay_all['Body'].str.contains(patt_arthur)]
+print(" The number of emails that mention Arthur Andersen is", len(arthur_email))
